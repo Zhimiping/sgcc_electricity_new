@@ -1,11 +1,11 @@
-name: Docker Image CI
+name: Docker Image Build
 
 on:  
   workflow_dispatch:
     inputs:
-      username:
+      version:
         description: 'version of this branch'
-        default: 'v1.6.2'
+        default: 'v1.6.3'
         required: true
         type: string
     paths:
@@ -17,7 +17,7 @@ on:
 
 jobs:
 
-  build:
+  build-docker-image:
 
     runs-on: ubuntu-latest
     steps:
@@ -32,13 +32,68 @@ jobs:
 
     - name: Build and push Docker image
       run: |
-        PLATFORMS=linux/arm64,linux/amd64
+        ARCH_TAGS="arm64 amd64"
         DOCKER_IMAGE=arcw/sgcc_electricity
-        docker buildx build --build-arg VERSION=${{ inputs.username }} --platform $PLATFORMS -t $DOCKER_IMAGE:latest -t $DOCKER_IMAGE:${{ inputs.username }} --file Dockerfile-for-github-action --push .
+        VERSION=${{ inputs.version }}
+        for ARCH in $ARCH_TAGS; do
+          if [ "$ARCH" == "arm64" ]; then
+            TAG_ARCH="aarch64"
+          else
+            TAG_ARCH=$ARCH
+          fi
+          docker buildx build --build-arg VERSION=${VERSION} --platform linux/${ARCH} -t ${DOCKER_IMAGE}-${TAG_ARCH}:latest -t ${DOCKER_IMAGE}-${TAG_ARCH}:${VERSION} -t ${DOCKER_IMAGE}:latest-${ARCH} -t ${DOCKER_IMAGE}:${VERSION}-${ARCH}  --file Dockerfile-for-github-action --push .
+        done
+        docker manifest create ${DOCKER_IMAGE}:latest \
+          ${DOCKER_IMAGE}:latest-amd64 \
+          ${DOCKER_IMAGE}:latest-arm64 
+          
+        docker manifest annotate ${DOCKER_IMAGE}:latest ${DOCKER_IMAGE}:latest-amd64 --os linux --arch amd64
+        docker manifest annotate ${DOCKER_IMAGE}:latest ${DOCKER_IMAGE}:latest-arm64 --os linux --arch arm64
+
+        docker manifest create ${DOCKER_IMAGE}:${VERSION} \
+          ${DOCKER_IMAGE}:${VERSION}-amd64 \
+          ${DOCKER_IMAGE}:${VERSION}-arm64 
+          
+        docker manifest annotate ${DOCKER_IMAGE}:${VERSION} ${DOCKER_IMAGE}:${VERSION}-amd64 --os linux --arch amd64
+        docker manifest annotate ${DOCKER_IMAGE}:${VERSION} ${DOCKER_IMAGE}:${VERSION}-arm64 --os linux --arch arm64
+
+        docker manifest push ${DOCKER_IMAGE}:latest
+        docker manifest push ${DOCKER_IMAGE}:${VERSION}
+
+        docker manifest inspect ${DOCKER_IMAGE}:latest
+        docker manifest inspect ${DOCKER_IMAGE}:${VERSION}
+
 
     - name: Log into Aliyun hub registry and push Docker image
       run: |
         echo ${{ secrets.DOCKER_PASSWORD }} | docker login -u ${{ secrets.ALIYUN_USERNAME }} --password-stdin registry.cn-hangzhou.aliyuncs.com 
-        PLATFORMS=linux/arm64,linux/amd64
+        ARCH_TAGS="arm64 amd64"
         DOCKER_IMAGE=registry.cn-hangzhou.aliyuncs.com/arcw/sgcc_electricity
-        docker buildx build --build-arg VERSION=${{ inputs.username }} --platform $PLATFORMS -t $DOCKER_IMAGE:latest -t $DOCKER_IMAGE:${{ inputs.username }} --file Dockerfile-for-github-action --push .
+        VERSION=${{ inputs.version }}
+        for ARCH in $ARCH_TAGS; do
+          if [ "$ARCH" == "arm64" ]; then
+            TAG_ARCH="aarch64"
+          else
+            TAG_ARCH=${ARCH}
+          fi
+          docker buildx build --build-arg VERSION=${VERSION} --platform linux/${ARCH} -t ${DOCKER_IMAGE}-${TAG_ARCH}:latest -t ${DOCKER_IMAGE}-${TAG_ARCH}:${VERSION} -t ${DOCKER_IMAGE}:latest-${ARCH} -t ${DOCKER_IMAGE}:${VERSION}-${ARCH}  --file Dockerfile-for-github-action --push .
+        done
+        docker manifest create ${DOCKER_IMAGE}:latest \
+          ${DOCKER_IMAGE}:latest-amd64 \
+          ${DOCKER_IMAGE}:latest-arm64 
+          
+        docker manifest annotate ${DOCKER_IMAGE}:latest ${DOCKER_IMAGE}:latest-amd64 --os linux --arch amd64
+        docker manifest annotate ${DOCKER_IMAGE}:latest ${DOCKER_IMAGE}:latest-arm64 --os linux --arch arm64
+
+        docker manifest create ${DOCKER_IMAGE}:${VERSION} \
+          ${DOCKER_IMAGE}:${VERSION}-amd64 \
+          ${DOCKER_IMAGE}:${VERSION}-arm64 
+
+        docker manifest annotate ${DOCKER_IMAGE}:${VERSION} ${DOCKER_IMAGE}:${VERSION}-amd64 --os linux --arch amd64
+        docker manifest annotate ${DOCKER_IMAGE}:${VERSION} ${DOCKER_IMAGE}:${VERSION}-arm64 --os linux --arch arm64
+
+        docker manifest push ${DOCKER_IMAGE}:latest
+        docker manifest push ${DOCKER_IMAGE}:${VERSION}
+
+        docker manifest inspect ${DOCKER_IMAGE}:latest
+        docker manifest inspect ${DOCKER_IMAGE}:${VERSION}

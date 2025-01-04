@@ -33,5 +33,7 @@ RUN mkdir /data \
     && rm -rf /var/log/*
 
 ENV LANG=C.UTF-8
+ENV SET_CONTAINER_TIMEZONE=true
+ENV CONTAINER_TIMEZONE=Asia/Shanghai
 
-CMD ["python"]
+CMD ["python3","main.py"]

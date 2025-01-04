@@ -12,6 +12,7 @@ from data_fetcher import DataFetcher
 def main():
     if 'PYTHON_IN_DOCKER' not in os.environ: 
         # 读取 .env 文件
+        import dotenv
         dotenv.load_dotenv(verbose=True)
     global RETRY_TIMES_LIMIT
     try:
